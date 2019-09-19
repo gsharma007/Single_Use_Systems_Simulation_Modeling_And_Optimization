@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Aug 27 11:11:57 2019
+
+@author: gauravsharma
+"""
+
+import numpy as np
+
+# number of customers in system
+NUM_CUSTOMERS = 20
+
+np.random.seed(23)
+
+# Time between arrivals drawn from log-normal dist
+# which its mean (exp(mu + sigma^2)) equals 2 hours
+Arrivals = np.random.lognormal(mean=0.6, sigma=0.3, size=NUM_CUSTOMERS)
+Arrival_times = [np.sum(Arrivals[:n]) for n in range(0, len(Arrivals))]
+
+"""
+1ST STEP: (HARVESTING)
+"""
+
+# number of machines for servicing customers
+NUM_MACHINES = 2
+
+# number of operator for setting up machines
+NUM_OPERATOR = 2
+
+# Each machine has unique Setup time for each customer (2D array)
+# drawn from exponential dist with rate of 0.5 hours/30 minutes
+setup_times = np.random.exponential(scale=0.5, size=(NUM_OPERATOR, NUM_CUSTOMERS))
+
+# Each machine has unique Service times for each customer (2D array)
+# drawn from triangular dist between 3.75 and 4.25 hours
+# with  mode and mean at 4 hour
+service_times_harvesting = np.random.triangular(left=3.75, mode=4, right=4.25, size=(NUM_MACHINES, NUM_CUSTOMERS))
+
+# customers waiting time to get service
+Waiting_time_for_service = np.zeros(NUM_CUSTOMERS)
+
+# customers departure time for step 1
+Departure_time = np.zeros(NUM_CUSTOMERS)
+
+# customers service times
+customers_service_times = np.zeros(NUM_CUSTOMERS)
+
+# length of time each machine has left of its current task
+# Initially all machines are ideal
+machine_busy_times = np.zeros(NUM_MACHINES)
+
+# length of time left for operator to finish its task
+# Initially all operators is free
+operator_busy_time = np.zeros(NUM_OPERATOR)
+
+# time for this step
+Time = 0
+
+# getting service
+for i in range(0, len(Arrival_times)):
+    
+      # time since last arrival
+    Time_Passed_Since_Last_Arrival = Arrival_times[i] - Time
+    
+        # decreasing the machine busy times by the time passed
+    for j in range(0, len(machine_busy_times)):
+        if machine_busy_times[j] > Time_Passed_Since_Last_Arrival:
+            machine_busy_times[j] -= Time_Passed_Since_Last_Arrival
+        else:
+            machine_busy_times[j] = 0
+          
+       # decreasing operator busy times by the time passed
+    for j in range(0, len(operator_busy_time)):
+        if operator_busy_time[j] > Time_Passed_Since_Last_Arrival:
+            operator_busy_time[j] -= Time_Passed_Since_Last_Arrival
+        else:
+            operator_busy_time[j] = 0       
+                
+      # length time from now until the machines get ready considering
+    # time needed for setting up machines
+    machine_ready_times = np.add(machine_busy_times, setup_times[:, i])
+    
+        # index of the machine that gets ready first
+    First_Ready_MCHN_idx = np.argmin(machine_ready_times)
+    
+        # index of operator that will get free first
+    First_Ready_Operator_idx = np.argmin(operator_busy_time)
+    
+        # the time that the first machine gets ready
+    First_machine_ready_time = machine_ready_times[First_Ready_MCHN_idx]
+
+    # the time that the first operator gets ready
+    First_operator_ready_time = operator_busy_time[First_Ready_Operator_idx]
+    
+        # service time of the first machine
+    customers_service_times[i] = service_times_harvesting[First_Ready_MCHN_idx, i]
+
+    # checking if operator is busy or not
+    if First_operator_ready_time == 0:
+        operator_busy_time[First_Ready_Operator_idx] = First_machine_ready_time
+    else:
+        operator_busy_time[First_Ready_Operator_idx] += First_machine_ready_time
+
+    # computing the time customer will be done with service
+    Customer_End_Time = operator_busy_time[First_Ready_Operator_idx] + customers_service_times[i]
+
+    # increasing the busy time of the machine giving service
+    machine_busy_times[First_Ready_MCHN_idx] += Customer_End_Time
+
+    # computing the time customer is done with service
+    Departure_time[i] = Customer_End_Time + Arrival_times[i]
+
+    # amount time customer waited to get service
+    # considering both operator and machines
+    Waiting_time_for_service[i] = operator_busy_time[First_Ready_Operator_idx]
+
+    # progressing time to next arrival
+    Time = Arrival_times[i]
+    # END of FOR
+
+    # ready time for transportation
+cryo_Arrival_times = Departure_time
+
+# total time in step 1
+Step1_times = np.subtract(Departure_time, Arrival_times)
+
+#harvesting yield calculation
+
+BV_harv = 5000 #Blood volume harvesting in ml
+CC_harv = 20 #coagulant concentration in ml
+t_harv = 3 #time spent for harvesting
+t_lower_harv = 4.5 #maximum growth harvest time
+t_max_harv = 5 #maximum time before cell count loss
+t_min_harv = 3 #minimum time for harvesting before we start observing effects
+alpha_harv = 1.5 #model cofficient
+alpha1_harv = 1.75 #patient cofficient
+alpha2_harv = 2.25 #chemical process effectiveness coefficient
+alpha3_G_harv = 2.5 #rowth coefficient before t_lower_harv is hit
+alpha3_D_harv = 2.75 #decay coefficient after t_max_harv hit
+
+if t_harv >= t_min_harv and t_harv <= t_lower_harv:
+    Y_harv = alpha_harv + alpha1_harv*BV_harv + alpha2_harv*CC_harv + alpha3_G_harv*t_harv 
+elif t_harv >= t_max_harv:
+    Y_harv = alpha_harv + alpha1_harv*BV_harv + alpha2_harv*CC_harv + alpha3_D_harv*t_harv
+
+"""
+2ND STEP: (CryoPreservation)
+"""
+# number of machines for servicing customers
+cryo_MACHINES = 2
+
+# number of operator for setting up machines
+cryo_OPERATORS = 2
+
+# Each machine has unique Setup time for each customer (2D array)
+# drawn from exponential dist with rate of 0.25 hours/15 minutes
+cryo_setup_times = np.random.exponential(scale=0.5, size=(cryo_OPERATORS, NUM_CUSTOMERS))
+
+# Each machine has unique Service times for each customer (2D array)
+# drawn from triangular dist between 1 and 2 hours
+# with  mode and mean at 2 hour
+cryo_service_times = np.random.triangular(left=3.75, mode=4, right=4.25, size=(cryo_MACHINES, NUM_CUSTOMERS))
+
+# customers waiting time to get service
+cryo_waiting_time_for_service = np.zeros(NUM_CUSTOMERS)
+
+# customers departure time for step 1
+cryo_departure_time = np.zeros(NUM_CUSTOMERS)
+
+# customers service times
+cryo_customers_service_times = np.zeros(NUM_CUSTOMERS)
+
+# length of time each machine has left of its current task
+# Initially all machines are ideal
+cryo_machine_busy_times = np.zeros(cryo_MACHINES)
+
+# length of time left for operator to finish its task
+# Initially all operators is free
+cryo_operator_busy_time = np.zeros(cryo_OPERATORS)
+
+# time for this step
+cryo_Time = 0
+
+# doing cryopreservation
+for i in range(0, len(cryo_Arrival_times)):
+    # time since last arrival
+    Time_Passed_Since_Last_Arrival = cryo_Arrival_times[i] - cryo_Time
+
+    # decreasing the machine busy times by the time passed
+    for j in range(0, len(cryo_machine_busy_times)):
+        if cryo_machine_busy_times[j] > Time_Passed_Since_Last_Arrival:
+            cryo_machine_busy_times[j] -= Time_Passed_Since_Last_Arrival
+        else:
+            cryo_machine_busy_times[j] = 0
+
+    # decreasing operator busy times by the time passed
+    for j in range(0, len(cryo_operator_busy_time)):
+        if cryo_operator_busy_time[j] > Time_Passed_Since_Last_Arrival:
+            cryo_operator_busy_time[j] -= Time_Passed_Since_Last_Arrival
+        else:
+            cryo_operator_busy_time[j] = 0
+            
+      # length time from now until the machines get ready considering
+    # time needed for setting up cryo_setup_times
+    cryo_machine_ready_times = np.add(cryo_machine_busy_times, cryo_setup_times[:, i])
+    
+        # index of the machine that gets ready first
+    cryo_First_Ready_MCHN_idx = np.argmin(cryo_machine_ready_times)
+    
+        # index of operator that will get free first
+    cryo_First_Ready_Operator_idx = np.argmin(cryo_operator_busy_time)
+    
+        # the time that the first machine gets ready
+    cryo_First_machine_ready_time = cryo_machine_ready_times[cryo_First_Ready_MCHN_idx]
+
+    # the time that the first operator gets ready
+    cryo_First_operator_ready_time = cryo_operator_busy_time[cryo_First_Ready_Operator_idx]
+    
+        # service time of the first machine
+    cryo_customers_service_times[i] = cryo_service_times[cryo_First_Ready_MCHN_idx, i]
+
+    # checking if operator is busy or not
+    if cryo_First_operator_ready_time == 0:
+        cryo_operator_busy_time[cryo_First_Ready_Operator_idx] = cryo_First_machine_ready_time
+    else:
+        cryo_operator_busy_time[cryo_First_Ready_Operator_idx] += cryo_First_machine_ready_time
+
+    # computing the time customer will be done with service
+    cryo_Customer_End_Time = cryo_operator_busy_time[cryo_First_Ready_Operator_idx] + cryo_customers_service_times[i]
+
+    # increasing the busy time of the machine giving service
+    cryo_machine_busy_times[cryo_First_Ready_MCHN_idx] += cryo_Customer_End_Time
+
+    # computing the time customer is done with service
+    cryo_departure_time[i] = cryo_Customer_End_Time + cryo_Arrival_times[i]
+
+    # amount time customer waited to get service
+    # considering both operator and machines
+    cryo_waiting_time_for_service[i] = cryo_operator_busy_time[cryo_First_Ready_Operator_idx]
+
+    # progressing time to next arrival
+    Time = Arrival_times[i]
+    # END of FOR
+
+    # ready time for transportation
+Transport_Arrival_times = cryo_departure_time
+
+# total time in step 2
+Step2_times = np.subtract(cryo_departure_time, Arrival_times)
+
+
+"""
+3rd STEP: (TRANSPORT TO MANUFACTURING FACILITY)
+"""
+
+# transport time, normal dist with mean of 6 hours and std of 2 hours
+Transport_times = np.random.normal(6, 2, NUM_CUSTOMERS)
+Transport_times = np.absolute(Transport_times)
+
+Transport_times_sorted = np.sort(Transport_times)
+
+destination_time = np.add(Transport_Arrival_times, Transport_times_sorted)
+
+facility_arrival_time = destination_time
+
+Step2_times = np.subtract(destination_time, Transport_Arrival_times)
+
+
+"""
+4th STEP: (MANUFACTURING PROCESS)
+"""
+
+# number of machines for manufacturing
+NUM_MANUF_MACHINES = 3
+
+# number of operator for setting up machines
+NUM_MANUF_OPERATOR = 3
+
+# Each machine has unique Setup time for each customer (2D array)
+# drawn from exponential dist with rate of 1 hours
+manufacturing_setup_times = np.random.exponential(scale=1, size=(NUM_MANUF_MACHINES, NUM_CUSTOMERS))
+
+# Each machine has unique manufacturing times for each customer (2D array)
+#  drawn from triangular dist between 3 and 7 hours
+#  with  mode and mean at 5 hour
+manufacturing_times = np.random.triangular(left=3, mode=5, right=7, size=(NUM_MANUF_MACHINES, NUM_CUSTOMERS))
+
+# customers waiting time to get service
+Waiting_time_for_manufacturing = np.zeros(NUM_CUSTOMERS)
+# customers departure time for step 3
+Manufacturing_Departure_time = np.zeros(NUM_CUSTOMERS)
+# customers manufacturing times
+customers_manufacturing_times = np.zeros(NUM_CUSTOMERS)
+
+# length of time each machine has left of its current task
+# Initially all machines are ideal
+manufacturing_machine_busy_times = np.zeros(NUM_MANUF_MACHINES)
+
+# length of time left for operator to finish its task
+# Initially all operators is free
+manufacturing_operator_busy_time = np.zeros(NUM_MANUF_OPERATOR)
+
+# time for this step
+manufacturing_Time = 0
+
+# getting manufacturing
+for i in range(0, len(facility_arrival_time)):
+    # time since last arrival
+    Time_Passed_Since_Last_Arrival = facility_arrival_time[i] - manufacturing_Time
+
+    # decreasing the machine busy times by the time passed
+    for j in range(0, len(manufacturing_machine_busy_times)):
+        if manufacturing_machine_busy_times[j] > Time_Passed_Since_Last_Arrival:
+            manufacturing_machine_busy_times[j] -= Time_Passed_Since_Last_Arrival
+        else:
+            manufacturing_machine_busy_times[j] = 0
+
+    # decreasing operator busy times by the time passed
+    for j in range(0, len(manufacturing_operator_busy_time)):
+        if manufacturing_operator_busy_time[j] > Time_Passed_Since_Last_Arrival:
+            manufacturing_operator_busy_time[j] -= Time_Passed_Since_Last_Arrival
+        else:
+            manufacturing_operator_busy_time[j] = 0
+
+    # length time from now until the machines get ready considering
+    # time needed for setting up machines
+    manufacturing_machine_ready_times = np.add(manufacturing_machine_busy_times, manufacturing_setup_times[:, i])
+
+    # index of the machine that gets ready first
+    manufacturing_First_Ready_MCHN_idx = np.argmin(manufacturing_machine_ready_times)
+
+    # index of operator that will get free first
+    manufacturing_First_Ready_Operator_idx = np.argmin(manufacturing_operator_busy_time)
+
+    # the time that the first machine gets ready
+    manufacturing_First_machine_ready_time = manufacturing_machine_ready_times[manufacturing_First_Ready_MCHN_idx]
+
+    # the time that the first operator gets ready
+    manufacturing_First_operator_ready_time = manufacturing_operator_busy_time[manufacturing_First_Ready_Operator_idx]
+
+    # service time of the first machine
+    customers_manufacturing_times[i] = manufacturing_times[manufacturing_First_Ready_MCHN_idx, i]
+
+    # checking if operator is busy or not
+    if manufacturing_First_operator_ready_time == 0:
+        manufacturing_operator_busy_time[manufacturing_First_Ready_Operator_idx] = manufacturing_First_machine_ready_time
+    else:
+        manufacturing_operator_busy_time[manufacturing_First_Ready_Operator_idx] += manufacturing_First_machine_ready_time
+
+    # computing the time customer will be done with service
+    manufacturing_End_Time = manufacturing_operator_busy_time[manufacturing_First_Ready_Operator_idx] + customers_manufacturing_times[i]
+
+    # increasing the busy time of the machine giving service
+    manufacturing_machine_busy_times[manufacturing_First_Ready_MCHN_idx] += manufacturing_End_Time
+
+    # computing the time customer is done with service
+    Manufacturing_Departure_time[i] = manufacturing_End_Time + facility_arrival_time[i]
+
+    # amount time customer waited to get service
+    # considering both operator and machines
+    Waiting_time_for_manufacturing[i] = manufacturing_operator_busy_time[manufacturing_First_Ready_Operator_idx]
+
+    # progressing time to next arrival
+    manufacturing_Time = facility_arrival_time[i]
+    # END of FOR
+
+# ready time for transportation
+ready_return_clinic_times = Manufacturing_Departure_time
+
+# total time in step 3
+Step3_times = np.subtract(Manufacturing_Departure_time, facility_arrival_time)
+
+"""
+5TH STEP: (TRANSPORT BACK TO CLINIC)
+"""
+
+# transport time, normal dist with mean of 6 hours and std of 2 hours
+Transport_return_times = np.random.normal(6, 2, NUM_CUSTOMERS)
+Transport_return_times = np.absolute(Transport_return_times)
+
+Transport_return_times_sorted = np.sort(Transport_return_times)
+
+clinic_arrival_times = np.add(Transport_return_times_sorted, ready_return_clinic_times)
+Exit_times = clinic_arrival_times
+
+Step4_times = np.subtract(clinic_arrival_times, ready_return_clinic_times)
+
+# ############ END of Process
+# Performance Measures
+
+import matplotlib.pyplot as plt
+
+# total service time from step 1 & 3
+Total_Service_Time = np.add(customers_service_times, customers_manufacturing_times)
+print("mean total service times (Step 1 & 4): ", np.mean(Total_Service_Time))
+print("s.d. of total service times (Step 1 & 4):", np.std(Total_Service_Time), "\n")
+
+# total wait time from step 1 & 3
+Total_Wait_Time = np.add(Waiting_time_for_service, Waiting_time_for_manufacturing)
+print("mean total wait times (Step 1 & 3): ", np.mean(Total_Wait_Time))
+print("s.d. of total wait times (Step 1 & 3):", np.std(Total_Wait_Time),"\n")
+
+# total transport time from step 2 & 4
+Total_Transport_time = np.add(Transport_times_sorted, Transport_return_times_sorted)
+print("mean total transport times (Step 2 & 4): ", np.mean(Total_Transport_time))
+print("s.d. of total transport times (Step 2 & 4):", np.std(Total_Transport_time),"\n")
+
+# total time spent by samples in the whole process
+Total_time_in_System = np.subtract(Exit_times, Arrival_times)
+print("mean total time in whole system: ", np.mean(Total_time_in_System))
+print("s.d. of total time in whole system:", np.std(Total_time_in_System), "\n")
+
+# time spent by samples in the havesting(Step 1)
+print("mean time in Step 1: ", np.mean(Step1_times))
+print("s.d. of Step1_times:", np.std(Step1_times), "\n")
+#plotting harvesting times
+plt.plot(Step1_times)
+plt.xlabel('time in mins')
+plt.title('Harvesting_times')
+plt.show()
+plt.clf
+
+# time spent by samples in the Transportation (Step 2)
+print("mean time in Step 2: ", np.mean(Step2_times))
+print("s.d. of Step2_times:", np.std(Step2_times), "\n")
+plt.plot(Step2_times)
+plt.xlabel('time in mins')
+plt.title('Transportation_time')
+plt.show()
+plt.clf
+
+# time spent by samples in the Manufacturing (Step 3)
+print("mean time in Step 3: ", np.mean(Step3_times))
+print("s.d. of Step3_times:", np.std(Step3_times), "\n")
+plt.plot(Step3_times)
+plt.xlabel('time in mins')
+plt.title('Manufacturing_time')
+plt.show()
+plt.clf
