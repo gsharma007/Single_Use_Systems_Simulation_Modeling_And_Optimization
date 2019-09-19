@@ -1,0 +1,96 @@
+import numpy as np
+
+# number of customers considered in the system
+NUM_CUSTOMERS = 5
+
+# fixing seed for testing purpose
+np.random.seed(26)
+
+# Time between arrivals drawn from log-normal dist
+# which its mean (exp(mu + sigma^2)) equals 2 hours
+Arrivals = np.random.lognormal(mean=0.6, sigma=0.3, size=NUM_CUSTOMERS)
+Arrival_times = [np.sum(Arrivals[:n]) for n in range(0, len(Arrivals))]
+
+"""
+1ST STEP: (HARVESTING)
+"""
+# number of operator for setting up machines
+NUM_OPERATOR = 3
+
+# number of machines for servicing customers
+NUM_MACHINES = 2
+
+# Each operator has unique setup time for each customer
+# drawn from exponential dist with rate of 0.5 hours/30 minutes
+setup_times = np.random.exponential(scale=0.5, size=NUM_OPERATOR)
+
+# Each machine has unique Service times for each customer
+# drawn from triangular dist between 3.75 and 4.25 hours
+# with  mode and mean at 4 hour
+service_times_harvesting = np.random.triangular(left=3.75, mode=4, right=4.25, size=NUM_MACHINES)
+
+
+operators = []  #list of all operators with their characteristics
+machines=[]     #list of all machines with their characteristics
+counter=0       #used to indicate operator's index
+for e in setup_times:
+    dict_opt = {
+        "Name": "O_"+str(counter),
+        "setup_time": e,
+        "ready_time": 0
+    }
+    operators.append(dict_opt)   #appending the operator's characteristics dictionraies in one list
+    counter = counter+1          #ensuring increment in operator's index
+
+counter=0      #used to indicate machine's index
+for x in service_times_harvesting:
+    dict_machine={
+        "Name":"M_"+str(counter),
+        "service_time":x,
+        "ready_time":0
+    }
+    machines.append(dict_machine) #appending the machine's characteristics dictionraies in one list
+    counter= counter+1            #ensuring increment in machine's index
+
+print(operators)      #final list of operators with their decision values
+print(machines)       #final list of machines with their decision values
+
+for patient in Arrival_times:
+    wait_time = 0
+    temp_o = operators[0]
+    for opt in operators:
+        if(opt["ready_time"]<=temp_o["ready_time"]):
+            if(opt["setup_time"]<=temp_o["setup_time"]):
+                temp_o = opt
+
+    temp_m = machines[0]
+    for mac in machines:
+        if(mac["ready_time"]<=temp_m["ready_time"]):
+            if(mac["service_time"]<=temp_m["service_time"]):
+                temp_m = mac
+                
+    print("temp_o : ", temp_o)
+    print("temp_m : ", temp_m)
+
+    if(patient>=temp_o["ready_time"] and patient>=temp_m["ready_time"]):
+        total_time = temp_o["setup_time"]+temp_m["service_time"] + patient
+    
+    else:
+        wait_time = max(temp_m["ready_time"], temp_o["ready_time"])-patient
+        total_time = wait_time + patient + temp_o["setup_time"]+temp_m["service_time"] + patient
+
+    for opt in operators:
+        if(temp_o["Name"]==opt["Name"]):
+            opt["ready_time"] =wait_time + opt["setup_time"]
+
+    for mac in machines:
+        if(temp_m["Name"]==mac["Name"]):
+            mac["ready_time"] = total_time
+
+    print("patient time : ", patient)
+    print("patient total Time : " , total_time-patient)
+    print("Operators",operators)
+    print("Machines", machines)
+    print("wait time :",wait_time)
+
+
