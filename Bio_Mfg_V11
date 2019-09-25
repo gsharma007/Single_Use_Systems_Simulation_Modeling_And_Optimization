@@ -1,10 +1,27 @@
+import csv
+
+filename="/Users/gauravsharma/Documents/design.csv"
+listofruns=[]
+with open (filename, "r", newline = "") as csvfile:
+    designs = csv.reader(csvfile)
+    flag_first_row=False
+    for row in designs:
+        if flag_first_row==False:
+            headers=row
+            flag_first_row=True
+        else:
+            listofruns.append(row)
+
+
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # number of customers considered in the system
-NUM_CUSTOMERS = 5
+NUM_CUSTOMERS = 50
 
 # fixing seed for testing purpose
-np.random.seed(26)
+# np.random.seed(26)
 
 # Time between arrivals drawn from log-normal dist
 # which its mean (exp(mu + sigma^2)) equals 2 hours
@@ -15,10 +32,10 @@ Arrival_times = [np.sum(Arrivals[:n]) for n in range(0, len(Arrivals))]
 1ST STEP: (HARVESTING)
 """
 # number of operator for setting up machines
-NUM_OPERATOR = 3
+NUM_OPERATOR = 2
 
 # number of machines for servicing customers
-NUM_MACHINES = 2
+NUM_MACHINES = 5
 
 # Each operator has unique setup time for each customer
 # drawn from exponential dist with rate of 0.5 hours/30 minutes
@@ -55,6 +72,12 @@ for x in service_times_harvesting:
 print(operators)      #final list of operators with their decision values
 print(machines)       #final list of machines with their decision values
 
+step1_wait_time = []
+step1_total_time = []
+step1_service_times = []
+step1_machine_allocation = []
+step1_operator_allocation = []
+
 for patient in Arrival_times:
     wait_time = 0
     temp_o = operators[0]
@@ -71,7 +94,11 @@ for patient in Arrival_times:
                 
     print("temp_o : ", temp_o)
     print("temp_m : ", temp_m)
-
+    
+    step1_operator_allocation.append(temp_o["Name"])
+    step1_machine_allocation.append(temp_m["Name"])
+    step1_service_times.append(temp_m["service_time"])
+    
     if(patient>=temp_o["ready_time"] and patient>=temp_m["ready_time"]):
         total_time = temp_o["setup_time"]+temp_m["service_time"] + patient
     
@@ -86,11 +113,343 @@ for patient in Arrival_times:
     for mac in machines:
         if(temp_m["Name"]==mac["Name"]):
             mac["ready_time"] = total_time
+            
+    step1_wait_time.append(wait_time)
+    step1_total_time.append(total_time-patient)
 
     print("patient time : ", patient)
     print("patient total Time : " , total_time-patient)
     print("Operators",operators)
     print("Machines", machines)
     print("wait time :",wait_time)
+    
+    print("Step 1 arrival times:" , Arrival_times)
+    print("Step 1 wait times:" ,step1_wait_time)
+    print("Step 1 total times:" , step1_total_time)
+    print("Step1_machine_allocation:", step1_machine_allocation)
+    print("step1_operator_allocation:", step1_operator_allocation)
+    print("Step1 service times:" , step1_service_times)
+    
+BV_harv = 5 #Blood volume harvesting
+CC_harv = 2 #coagulant concentration
+t_lower_harv = 4#maximum growth harvest time
+t_max_harv = 2.9 #maximum time before cell count loss
+t_min_harv = 6 #minimum time for harvesting before we start observing effects
+alpha_harv = 7 #model cofficient
+alpha1_harv = 8 #patient cofficient
+alpha2_harv = 9 #chemical process effectiveness coefficient
+alpha3_G_harv = 10 #rowth coefficient before t_lower_harv is hit
+alpha3_D_harv = 11 #decay coefficient after t_max_harv hit
+
+yield_harvesting = []
+for ST_H in step1_service_times:
+    t_harv = ST_H #time spent for harvesting
+    if(t_harv >= t_min_harv and t_harv <= t_lower_harv):
+        Y_harv = alpha_harv + alpha1_harv * BV_harv + alpha2_harv * CC_harv + alpha3_G_harv * t_harv 
+    elif (t_harv >= t_max_harv):
+        Y_harv = alpha_harv + alpha1_harv * BV_harv + alpha2_harv * CC_harv + alpha3_D_harv * t_harv
+        
+    else:
+        Y_harv = alpha_harv + alpha1_harv * BV_harv + alpha2_harv * CC_harv
+
+    yield_harvesting.append(Y_harv)
+
+print("Harvesting Yield:" , yield_harvesting)
+
+plt.plot(step1_wait_time)
+plt.xlabel('time in mins')
+plt.title('Step 1 wait time')
+plt.show()
+plt.clf
+    
+plt.boxplot(yield_harvesting)
+plt.title('Harvesting in Yield')
+plt.show()
+plt.clf
+
+sns.set(color_codes=True)
+sns.distplot(step1_wait_time, hist=False, rug=True);
+
+
+"""
+2nd Step: (Cryopreservation)
+"""
+
+cryo_arrivals = step1_total_time
+
+# number of operator for setting up machines
+cryo_Num_OPERATOR = 2
+
+# number of machines for servicing customers
+cryo_Num_MACHINES = 3
+
+# Each operator has unique setup time for each customer
+# drawn from exponential dist with rate of 0.5 hours/30 minutes
+Cryo_setup_times = np.random.exponential(scale=0.5, size=cryo_Num_OPERATOR)
+
+# Each machine has unique Service times for each customer
+# drawn from triangular dist between 3.75 and 4.25 hours
+# with  mode and mean at 4 hour
+Cryo_service_times = np.random.triangular(left=3.75, mode=4, right=4.25, size=cryo_Num_MACHINES)
+
+
+cryo_operators = []  #list of all operators with their characteristics
+cryo_machines=[]     #list of all machines with their characteristics
+counter=0       #used to indicate operator's index
+for e in Cryo_setup_times:
+    dict_cryo_opt = {
+        "Name": "O_"+str(counter),
+        "cryo_setup_time": e,
+        "cryo_o_ready_time": 0
+    }
+    cryo_operators.append(dict_cryo_opt)   #appending the operator's characteristics dictionraies in one list
+    counter = counter+1          #ensuring increment in operator's index
+
+counter=0      #used to indicate machine's index
+for x in Cryo_service_times:
+    dict_cryo_machine={
+        "Name":"M_"+str(counter),
+        "cryo_service_time":x,
+        "cryo_m_ready_time":0
+    }
+    cryo_machines.append(dict_cryo_machine) #appending the machine's characteristics dictionraies in one list
+    counter= counter+1            #ensuring increment in machine's index
+
+print(cryo_operators)      #final list of operators with their decision values
+print(cryo_machines)       #final list of machines with their decision values
+
+step2_wait_time = []
+step2_total_time = []
+step2_service_times = []
+step2_machine_allocation = []
+step2_operator_allocation = []
+
+for patient in cryo_arrivals:
+    cryo_wait_time = 0
+    cryo_temp_o = cryo_operators[0]
+    for cryo_opt in cryo_operators:
+        if(cryo_opt["cryo_o_ready_time"]<=cryo_temp_o["cryo_o_ready_time"]):
+            if(cryo_opt["cryo_setup_time"]<=cryo_temp_o["cryo_setup_time"]):
+                cryo_temp_o = cryo_opt
+
+    cryo_temp_m = cryo_machines[0]
+    for cryo_mac in cryo_machines:
+        if(cryo_mac["cryo_m_ready_time"]<=cryo_temp_m["cryo_m_ready_time"]):
+            if(cryo_mac["cryo_service_time"]<=cryo_temp_m["cryo_service_time"]):
+                cryo_temp_m = cryo_mac
+                
+    print("cryo_temp_o : ", cryo_temp_o)
+    print("cryo_temp_m : ", cryo_temp_m)
+    
+    step2_operator_allocation.append(cryo_temp_o["Name"])
+    step2_machine_allocation.append(cryo_temp_m["Name"])
+    step2_service_times.append(cryo_temp_m["cryo_service_time"])
+    
+    if(patient>=cryo_temp_o["cryo_o_ready_time"] and patient>=cryo_temp_m["cryo_m_ready_time"]):
+        cryo_total_time = cryo_temp_o["cryo_setup_time"]+cryo_temp_m["cryo_service_time"] + patient
+    
+    else:
+        cryo_wait_time = max(cryo_temp_m["cryo_m_ready_time"], cryo_temp_o["cryo_o_ready_time"])-patient
+        cryo_total_time = cryo_wait_time + patient + cryo_temp_o["cryo_setup_time"]+cryo_temp_m["cryo_service_time"] + patient
+
+    for cryo_opt in cryo_operators:
+        if(cryo_temp_o["Name"]==cryo_opt["Name"]):
+            cryo_opt["cryo_o_ready_time"] =cryo_wait_time + cryo_opt["cryo_setup_time"]
+
+    for cryo_mac in cryo_machines:
+        if(cryo_temp_m["Name"]==cryo_mac["Name"]):
+            cryo_mac["cryo_m_ready_time"] = cryo_total_time
+            
+    step2_wait_time.append(cryo_wait_time)
+    step2_total_time.append(cryo_total_time-patient)
+
+    print("S2 patient time : ", patient)
+    print("S2 patient total Time : " , cryo_total_time-patient)
+    print("S2 Operators",cryo_operators)
+    print("S2 Machines", cryo_machines)
+    print("S2 wait time :",cryo_wait_time)
+    
+    print("Step2 arrival times:" , cryo_arrivals)
+    print("Step2 wait times:" ,step2_wait_time)
+    print("Step2 total times:" , step2_total_time)
+    print("Step2_machine_allocation:", step2_machine_allocation)
+    print("step2_operator_allocation:", step2_operator_allocation)
+    print("Step2_service times:" , step2_service_times)
+
+plt.plot(step2_wait_time)
+plt.xlabel('time in mins')
+plt.title('Step 2 wait time')
+plt.show()
+plt.clf
+
+sns.set(color_codes=True)
+sns.distplot(step2_wait_time, hist=False, rug=True)
+
+
+"""
+3rd Step: (Transportation to Manufacturing Facility)
+"""
+
+# transport time, normal dist with mean of 6 hours and std of 2 hours
+Transport_times = np.random.normal(6, 2, NUM_CUSTOMERS)
+Transport_times = np.absolute(Transport_times)
+Transport_times_sorted = np.sort(Transport_times)
+destination_time = np.add(Transport_Arrival_times, Transport_times_sorted)
+facility_arrival_time = destination_time
+Step2_times = np.subtract(destination_time, Transport_Arrival_times)
+
+
+"""
+4th Step: (Manufacturing Facility)
+"""
+
+#yeild after cryopreservation and transportation
+
+Freezing_T_Cr = -191   #Freezing temperature during cryopreservation
+Cr_Time = 8            #Cryopreserved time
+Medium_C_Cr = 20       #Cryopreservation medium concentration
+T_time= 300            #Transportation time
+#model cofficients
+Beta1 = 4
+Beta2 = 6
+Beta3 = 7
+Beta4 = 8
+Beta5 = 9
+
+ #Yield before the manufacturing
+Y_BMf= Beta1 + Beta2*Freezing_T_Cr + Beta3*Cr_Time + Beta4*Medium_C_Cr + Beta5*T_time
+
+
+#Manufacturing Step
+
+mfg_arrivals = step3_total_time
+
+# number of operator for setting up machines
+mfg_Num_OPERATOR = 2
+
+# number of machines for servicing customers
+mfg_Num_MACHINES = 3
+
+# Each operator has unique setup time for each customer
+# drawn from exponential dist with rate of 0.5 hours/30 minutes
+mfg_setup_times = np.random.exponential(scale=0.5, size=mfg_Num_OPERATOR)
+
+# Each machine has unique Service times for each customer
+# drawn from triangular dist between 3.75 and 4.25 hours
+# with  mode and mean at 4 hour
+mfg_service_times = np.random.triangular(left=3.75, mode=4, right=4.25, size=mfg_Num_MACHINES)
+
+
+mfg_operators = []  #list of all operators with their characteristics
+mfg_machines=[]     #list of all machines with their characteristics
+counter=0       #used to indicate operator's index
+for e in mfg_setup_times:
+    dict_mfg_opt = {
+        "Name": "O_"+str(counter),
+        "mfg_setup_time": e,
+        "mfg_o_ready_time": 0
+    }
+    mfg_operators.append(dict_mfg_opt)   #appending the operator's characteristics dictionraies in one list
+    counter = counter+1          #ensuring increment in operator's index
+
+counter=0      #used to indicate machine's index
+for x in mfg_service_times:
+    dict_mfg_machine={
+        "Name":"M_"+str(counter),
+        "mfg_service_time":x,
+        "mfg_m_ready_time":0
+    }
+    mfg_machines.append(dict_mfg_machine) #appending the machine's characteristics dictionraies in one list
+    counter= counter+1            #ensuring increment in machine's index
+
+print(mfg_operators)      #final list of operators with their decision values
+print(mfg_machines)       #final list of machines with their decision values
+
+step4_wait_time = []
+step4_total_time = []
+step4_service_times = []
+step4_machine_allocation = []
+step4_operator_allocation = []
+
+for patient in mfg_arrivals:
+    mfg_wait_time = 0
+    mfg_temp_o = mfg_operators[0]
+    for mfg_opt in mfg_operators:
+        if(mfg_opt["mfg_o_ready_time"]<=mfg_temp_o["mfg_o_ready_time"]):
+            if(mfg_opt["mfg_setup_time"]<=mfg_temp_o["mfg_setup_time"]):
+                mfg_temp_o = mfg_opt
+
+    mfg_temp_m = mfg_machines[0]
+    for mfg_mac in mfg_machines:
+        if(mfg_mac["mfg_m_ready_time"]<=mfg_temp_m["mfg_m_ready_time"]):
+            if(mfg_mac["mfg_service_time"]<=mfg_temp_m["mfg_service_time"]):
+                mfg_temp_m = mfg_mac
+                
+    print("mfg_temp_o : ", mfg_temp_o)
+    print("mfg_temp_m : ", mfg_temp_m)
+    
+    step4_operator_allocation.append(mfg_temp_o["Name"])
+    step4_machine_allocation.append(mfg_temp_m["Name"])
+    step4_service_times.append(mfg_temp_m["mfg_service_time"])
+    
+    if(patient>=mfg_temp_o["mfg_o_ready_time"] and patient>=mfg_temp_m["mfg_m_ready_time"]):
+        mfg_total_time = mfg_temp_o["mfg_setup_time"]+mfg_temp_m["mfg_service_time"] + patient
+    
+    else:
+        mfg_wait_time = max(mfg_temp_m["mfg_m_ready_time"], mfg_temp_o["mfg_o_ready_time"])-patient
+        mfg_total_time = mfg_wait_time + patient + mfg_temp_o["mfg_setup_time"]+mfg_temp_m["mfg_service_time"] + patient
+
+    for mfg_opt in mfg_operators:
+        if(mfg_temp_o["Name"]==mfg_opt["Name"]):
+            mfg_opt["mfg_o_ready_time"] =mfg_wait_time + mfg_opt["mfg_setup_time"]
+
+    for mfg_mac in mfg_machines:
+        if(mfg_temp_m["Name"]==mfg_mac["Name"]):
+            mfg_mac["mfg_m_ready_time"] = mfg_total_time
+            
+    step4_wait_time.append(mfg_wait_time)
+    step4_total_time.append(mfg_total_time-patient)
+
+    print("S4 patient time : ", patient)
+    print("S4 patient total Time : " , mfg_total_time-patient)
+    print("S4 Operators",mfg_operators)
+    print("S4 Machines", mfg_machines)
+    print("S4 wait time :",mfg_wait_time)
+    
+    print("Step4 arrival times:" , mfg_arrivals)
+    print("Step4 wait times:" ,step4_wait_time)
+    print("Step4 total times:" , step4_total_time)
+    print("Step4_machine_allocation:", step4_machine_allocation)
+    print("step4_operator_allocation:", step4_operator_allocation)
+    print("Step4_service times:" , step4_service_times)
+
+plt.plot(step4_wait_time)
+plt.xlabel('time in mins')
+plt.title('Step 4 wait time')
+plt.show()
+plt.clf
+
+sns.set(color_codes=True)
+sns.distplot(step4_wait_time, hist=False, rug=True)
+
+#yeild after manufacturing
+
+YM= Yield after the manufacturing phase
+ThT= Time spent for thawing
+ThC= Concentration of the thawing medium used
+GMT= Time taken by gene modification step
+GMC= Concentration of the medium used for CAR attachment
+ET= Time taken during the expansion step
+EC= Concentration of the medium used for cell expansion
+
+Gamma1 = 14
+Gamma2 = 15
+Gamma3 = 16
+Gamma4 = 17
+Gamma5 = 18
+Gamma6 = 19
+Gamma7 = 20
+
+
 
 
