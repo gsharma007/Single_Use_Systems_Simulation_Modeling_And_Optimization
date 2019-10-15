@@ -11,12 +11,12 @@ Created on Mon Oct 14 22:55:06 2019
 """
 Created on Wed Oct 9 00:34:32 2019
 
-@author: nehasharma
+@author: gauravsharma
 """
 
 import random
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import pandas as pd
 
@@ -88,6 +88,10 @@ final_design = np.transpose(final_design)
 # print (results)
 # =============================================================================
 
+df = pd.DataFrame()
+df_consol = pd.DataFrame()
+
+
 patientGender = []
 for amount in range(NUM_PATIENTS):
     flip = random.randint(0, 1)
@@ -99,6 +103,7 @@ for amount in range(NUM_PATIENTS):
 print(patientGender)
 print("Percent Male Patients: \n", patientGender.count("Male")/NUM_PATIENTS)
 print("percent Female Patients: \n",patientGender.count("Female")/NUM_PATIENTS)
+
 
 
 """generating blood volume from uniform distribution based on the gender of the patient"""
@@ -204,37 +209,46 @@ print ("Harvesting Yield For Patient : \n", yield_harvesting)
 
 total_run = pd.DataFrame(columns=["Arrival_times", "harv_operator_allocation","harv_setup_times","harv_machine_allocation","harv_service_times","harv_wait_time","harv_total_time","harv_Departure_times"])
 
-def main_call(mfg_machine, mfg_operator, product_mix):
-    selected_time_value = []
+
+
+def main_call(mfg_machine, mfg_operator, product_mix,run):
+    sel_value_list =[]
     for z in range(NUM_PATIENTS):
         if product_mix == 1:
-            selected_time_value.append(random.choice(time_level_patients[z]))
+            sel_value = random.choice([0,1,2])
+            
         if product_mix == 2:
             s = np.random.uniform(0, 1)
             if (s <= 0.15):
-               selected_time_value.append(time_level_patients[z][0])
+               sel_value = 0
             elif (0.15 < s <= 0.85):
-                selected_time_value.append(time_level_patients[z][1])
+                sel_value = 1
             else:
-                selected_time_value.append(time_level_patients[z][2])
+                sel_value = 2
         if product_mix == 3:
             s = np.random.uniform(0, 1)
             if (s <= 0.70):
-               selected_time_value.append(time_level_patients[z][0])
+                sel_value = 0
             elif (0.70 < s <= 0.85):
-                selected_time_value.append(time_level_patients[z][1])
+                sel_value = 1
             else:
-                selected_time_value.append(time_level_patients[z][2])
+                sel_value = 2
         if product_mix == 4:
             s = np.random.uniform(0, 1)
             if (s <= 0.15):
-               selected_time_value.append(time_level_patients[z][0])
+                sel_value = 0
             elif (0.15 < s <= 0.30):
-                selected_time_value.append(time_level_patients[z][1])
+                sel_value = 1
             else:
-                selected_time_value.append(time_level_patients[z][2])
+                sel_value = 2
         
-    print(selected_time_value)
+        sel_value_list.append(sel_value)
+        
+
+    yield_harvest = [yield_harvesting[z,i] for z,i in zip(range(NUM_PATIENTS),sel_value_list)]
+    print("Selected index:",sel_value_list)
+    print("Yield",[time_level_patients[z,i] for z,i in zip(range(NUM_PATIENTS),sel_value_list)])
+    print("Yield",)
     
     # =============================================================================
     # plt.scatter(time_level_patients[:2],yield_harvesting[:2])
@@ -362,14 +376,24 @@ def main_call(mfg_machine, mfg_operator, product_mix):
     print("Harv service times : \n" , harv_service_times)
     print("Harv_wait_times : \n" , harv_wait_time)
     print("Harv_total_times: \n" , harv_total_time)
-    
-    
+  
     harv_Departure_times = []
     for n in range(NUM_PATIENTS):
         harv_Departure_times.append(Arrival_times[n] + harv_total_time[n])
-       
-        
-    print("Harv_Departure_times : \n", harv_Departure_times)
+     
+    print("Harv_Departure_times : \n", harv_Departure_times)    
+    
+    
+    df['Arrvial_times'] = Arrival_times
+    df['Harv_operator_allocation'] = harv_operator_allocation
+    df['Harv_setup_times'] = harv_setup_times
+    df['harv_machine_allocation'] = harv_machine_allocation
+    df['harv_service_times'] = harv_service_times
+    df['Harv_wait_times'] = harv_wait_time
+    df['Harv_total_times'] = harv_total_time
+    df['Harv_Departure_times'] = harv_Departure_times
+    df['Yield'] = yield_harvest
+    
     
     total_run.loc[len(total_run)] = [Arrival_times, harv_operator_allocation, harv_setup_times,harv_machine_allocation,harv_service_times,harv_wait_time,harv_total_time,harv_Departure_times]
     
@@ -389,6 +413,9 @@ def main_call(mfg_machine, mfg_operator, product_mix):
     cryo_departure_times = cryo_arrivals + cryo_service_times 
     print("Cryo_departure_times : \n", cryo_departure_times)
     
+    df['cryo_arrivals'] = cryo_arrivals
+    df['Cryo_service_times'] = cryo_service_times
+    df['Cryo_departure_times'] = cryo_departure_times
     
     """ system simulation for transportation"""
     
@@ -401,6 +428,9 @@ def main_call(mfg_machine, mfg_operator, product_mix):
     mfg_arrival_times = tnsprt_start + tnsprt_times
     print("Mfg_arrival_time : \n", mfg_arrival_times)
     
+    df['Clinic_departure_time'] = tnsprt_start
+    df['Transit_transportation_time'] = tnsprt_times
+    df['Mfg_arrival_time'] = mfg_arrival_times
     
     """ system simulation for manufacturing"""
     
@@ -513,6 +543,14 @@ def main_call(mfg_machine, mfg_operator, product_mix):
     print("MFG_wait_times : \n" ,mfg_sample_wait_time)
     print("MFG_total_times: \n" , mfg_sample_total_time)
     
+    df['MFG_operator_allocation'] = mfg_operator_allocation
+    df['MFG_setup_times'] = mfg_setup_times
+    df['MFG_machine_allocation'] = mfg_machine_allocation
+    df['MFG_service'] = mfg_service_times
+    df['MFG_wait_times'] = mfg_sample_wait_time
+    df['MFG_total_times'] = mfg_sample_total_time
+    
+    
     mfg_Departure_times = []
     for n in range(NUM_PATIENTS):
         mfg_Departure_times.append(mfg_arrival_times[n] + mfg_sample_total_time[n])
@@ -526,16 +564,27 @@ def main_call(mfg_machine, mfg_operator, product_mix):
     print("Clinic_back_departure_time(hours) : \n", back_tnsprt_start)
     back_tnsprt_times = np.random.triangular(left=9, mode=12, right=15, size=NUM_PATIENTS)
     print("Transit_back_transportation_time(hours) : \n", back_tnsprt_times)
-    mfg_arrival_times = back_tnsprt_start + back_tnsprt_times
-    print("Clinic_arrival_time_end(hours) : \n", mfg_arrival_times)
+    clinic_end_arrival_times = back_tnsprt_start + back_tnsprt_times
+    print("Clinic_arrival_time_end(hours) : \n", clinic_end_arrival_times)
     
-    Overall_process_time = mfg_arrival_times/24
+    Overall_process_time = clinic_end_arrival_times/24
     print("Overall_process_time(days) : \n", Overall_process_time)
+    
+    df['Clinic_back_departure_time(hours)'] = back_tnsprt_start
+    df['Transit_back_transportation_time(hours)'] = back_tnsprt_times
+    df['Clinic_arrival_time_end(hours)'] = clinic_end_arrival_times
+    df['Overall_process_time(days)'] = Overall_process_time
 
-
+run =0 
 for x in final_design:
-    main_call(x[0],x[1],x[2])
+    run+=1
+    main_call(x[0],x[1],x[2],run)
+    df['run'] = run
+    df_consol = df_consol.append(df)
 
 print("Arrival Times :" ,total_run["Arrival_times"])
 
 print("First patient:",total_run.iloc[0])
+
+
+df_consol.to_excel(r'/Users/gauravsharma/Documents/Simulation_Thesis\Simulation_results.xls')
