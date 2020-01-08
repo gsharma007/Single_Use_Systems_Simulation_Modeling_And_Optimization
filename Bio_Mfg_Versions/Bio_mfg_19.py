@@ -15,7 +15,7 @@ import pandas as pd
 
 #Defining number of patients in one experiment
 
-NUM_PATIENTS = 50
+NUM_PATIENTS = 60
 
     
 """ full factorial design_genertion """
