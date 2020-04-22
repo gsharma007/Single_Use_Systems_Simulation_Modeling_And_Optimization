@@ -12,7 +12,6 @@ Created on Fri Oct  4 11:17:58 2019
 # https://pypi.org/project/pyDOE/
 # https://www.statisticshowto.datasciencecentral.com/latin-hypercube-sampling/
 # =============================================================================
-
 import numpy as np
 import matplotlib.pyplot as plt
 from smt.sampling_methods import LHS  #surrogate modeling toolbox
