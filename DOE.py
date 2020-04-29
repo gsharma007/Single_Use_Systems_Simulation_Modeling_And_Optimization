@@ -6,7 +6,6 @@ Created on Mon Apr 20 05:56:04 2020
 @author: gauravsharma
 """
 
-
 #import random
 import numpy as np
 #import matplotlib.pyplot as plt
