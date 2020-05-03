@@ -8,7 +8,6 @@ Created on Thu Nov 21 21:03:57 2019
 
 import numpy as np
 
-
 Measurment_count = 4
 
 Measurment_times = np.random.uniform(low = 0, high = 4, size= Measurment_count)
