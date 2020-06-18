@@ -215,7 +215,6 @@ def function_2():
     final_design = np.transpose(final_design)    
     
     #initializing a dataframe
-    
     df_consol = pd.DataFrame()
     run =0 
     for x in final_design:
